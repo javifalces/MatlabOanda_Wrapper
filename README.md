@@ -4,7 +4,9 @@ Project to interact with OANDA API in MATLAB  - TradEA SYSTEMS (www.tradeasystem
  
    REQUIREMENTS
     JSONLAB :  http://www.mathworks.com/matlabcentral/fileexchange/33381-jsonlab--a-toolbox-to-encode-decode-json-files-in-matlab-octave
+    
+    
     URLREAD2: http://www.mathworks.com/matlabcentral/fileexchange/35693-urlread2   
     
     
-    thanks to Qianqian Fang(JSONLAB) and Jim Hokanson
+    thanks to Qianqian Fang(JSONLAB) and Jim Hokanson(URLREAD2)
