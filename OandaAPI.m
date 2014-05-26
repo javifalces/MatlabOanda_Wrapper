@@ -37,19 +37,24 @@ classdef OandaAPI
            
           %% CONSTRUCTOR------------------------------------------------
           function api = OandaAPI(token,environment,account)
-               if(nargin ==3)
+              if strcmp(class(account),'double')==1
+                    account = num2str(account); 
+              end 
+              
+              if(nargin ==3)
                  api.environment = environment;
                  api.token   = token;
+                 
                  api.account = account;
                  api.connected = true;
                elseif( nargin ==2)
                  api.environment = environment;
                  api.token   = token;
-                 api.account = 0;
+                 api.account = '0';
                  
                elseif(nargin ==0)
                        api.token   = '';%'12345678900987654321-abc34135acde13f13530';%demo token
-                       account=0;
+                       account='0';
                        print('DEMO');
                        api.environment = 'sandbox';
                elseif(nargin ==1)
@@ -66,8 +71,15 @@ classdef OandaAPI
                    
                elseif strcmp(api.environment ,'practice' )
                     disp('Set enviroment to practice');
-                   api.s_apiServer = 'https://api-fxpractice.oanda.com/';   
-                   api.headers =  struct('name','Authorization','value',sprintf('Bearer %s',api.token));
+                   api.s_apiServer = 'https://api-fxpractice.oanda.com/'; 
+                   
+                   header0 = http_createHeader('X-HostCommonName','api-fxpractice.oanda.com');
+                   header1 = http_createHeader('Host','api-fxpractice.oanda.com');
+                   header2 = http_createHeader('X-Target-URI',api.s_apiServer);
+                                      
+                   header_auth = http_createHeader('Authorization',sprintf('Bearer %s',api.token));
+                   
+                   api.headers =  [header0;header1;header2;header_auth];
 %                    header1 = struct('name','Content-Type','value','application/x-www-form-urlencoded; charset=UTF-8');
 %                    header2 = struct('name','Connection','value','Keep-Alive');
 %                    header3 = struct('name','Host','value','api-fxpractice.oanda.com');
@@ -78,8 +90,17 @@ classdef OandaAPI
                    
                elseif strcmp(api.environment ,'live' )
                     disp('Set enviroment to live');
-                   api.s_apiServer = 'https://api-fxtrade.oanda.com/'; 
-                   api.headers =  struct('name','Authorization','value',strcat('Bearer %s',api.token));
+                    api.s_apiServer = 'https://api-fxtrade.oanda.com/'; 
+                    
+                   header0 = http_createHeader('X-HostCommonName','api-fxtrade.oanda.com');
+                   header1 = http_createHeader('Host','api-fxtrade.oanda.com');
+                   header2 = http_createHeader('X-Target-URI',api.s_apiServer);
+                                      
+                   header_auth = http_createHeader('Authorization',sprintf('Bearer %s',api.token));
+                   
+                   api.headers =  [header0;header1;header2;header_auth];
+                                     
+                   
 %                     header1 = struct('name','Content-Type','value','application/x-www-form-urlencoded; charset=UTF-8');
 %                    header2 = struct('name','Connection','value','Keep-Alive');
 %                    header3 = struct('name','Host','value','api-fxtrade.oanda.com');
@@ -185,6 +206,8 @@ classdef OandaAPI
            
            %% Retrieve instrument history
            function History = GetHistory(api, symbol ,granularity, count,startdate,enddate, candleFormat,includeFirst  )
+               
+               
                if nargin < 8
                    granularity='S5';
                    count='500';
@@ -210,50 +233,202 @@ classdef OandaAPI
                 History = api.MakeRequest(requestString)
                
            end
-           %%
-           
+           %% Order ----------------------------------------------- 
+           %% Create new ‘limit’,‘stop’,‘marketIfTouched’ or ‘market’.
+           function [orderId,ret] = CreateOrder(api, symbol , volume, side, type,expiry,price,      lowerBound,upperBound,stopLoss,takeProfit,  trailingStop )
+            requestString = '';
+            if api.connected 
+               requestString = strcat(api.s_apiServer , 'v1/accounts/' , api.account,'/orders');
+               
+               %stringsconversion
+               if strcmp(class(volume),'double')==1
+                    volume = num2str(volume); 
+              end 
+               
+              
+               
+               
+                  if nargin==4 %market order
+                    %Market Order   
+                    %https://api-fxpractice.oanda.com/v1/accounts/{account_id}/orders
+                    %http://api-sandbox.oanda.com/v1/accounts/12345/trades
+                    body = strcat('Content-Type=application%2Fx-www-form-urlencoded&instrument=',symbol,'&units=',volume,'&side=',side,'&type=market');
+
+                  else %limit order
+                      opt = '';
+                      if strcmp(class(price),'double')==1
+                            price = num2str(price); 
+                      end 
+                      
+                      if lowerBound ~=0
+                       lowerBoundstr = num2str(lowerBound);
+                       opt = strcat(opt,'&lowerBound=',lowerBoundstr);
+                                                                   
+                      end
+                      if upperBound ~=0
+                        upperBoundstr = num2str(upperBound);
+                       opt = strcat(opt,'&upperBound=',upperBoundstr);
+                                                               
+                      end
+                      if stopLoss ~=0
+                        stopLossstr = num2str(stopLoss);
+                       opt = strcat(opt,'&stopLoss=',stopLossstr);                                                               
+                      end
+                      if takeProfit ~=0
+                        takeProfitstr = num2str(takeProfit);
+                       opt = strcat(opt,'&takeProfit=',takeProfitstr);                                                               
+                      end
+                       
+                      if trailingStop ~=0
+                        trailingStopstr = num2str(trailingStop);
+                       opt = strcat(opt,'&trailingStop=',trailingStopstr);                                                               
+                      end
+                      
+                      body = strcat('Content-Type=application%2Fx-www-form-urlencoded&instrument=',symbol,'&units=',volume,'&side=',side,'&type=',type,...
+                          '&price=',pricestr,opt);
+
+
+                    end
+            
+            end
+            ret = api.MakePost(requestString,body)
+            orderId = ret.tradeOpened.id(1);
+           end
+           %% Get Order Info
+           function [order] = GetOrder(api, orderId)
+               requestString = '';
+               
+              if strcmp(class(orderId),'double')==1
+                    orderId = num2str(orderId); 
+              end 
+                             
+            if api.connected 
+                requestString = strcat(api.s_apiServer , 'v1/accounts/',api.account,'/orders/',orderId );
+                
+                order = api.MakeRequest(requestString);
+            else
+                disp('Must be connected - api.account not chosen');
+               order='0';
+            end
+           end
+           %% Close Order
+           function [order] = CloseOrder(api, orderId)
+               requestString = '';
+               
+              if strcmp(class(orderId),'double')==1
+                    orderId = num2str(orderId); 
+              end 
+                             
+            if api.connected 
+                requestString = strcat(api.s_apiServer , 'v1/accounts/',api.account,'/orders/',orderId );
+                
+                order = api.MakeDelete(requestString);
+            else
+                disp('Must be connected - api.account not chosen');
+               order='0';
+            end
+           end
+           %% Modify Order
+           function [orderId,ret] = ModifyOrder(api,orderId, symbol , volume, side, type,expiry,price,      lowerBound,upperBound,stopLoss,takeProfit,  trailingStop )
+            requestString = '';
+            if strcmp(class(orderId),'double')==1
+                    orderId = num2str(orderId); 
+              end 
+            
+            if api.connected 
+               requestString = strcat(api.s_apiServer , 'v1/accounts/' , api.account,'/orders/',orderId);
+               
+               %stringsconversion
+               volumestr = num2str(volume);
+              
+                           
+                  
+                  %limit order
+                      opt = '';
+                       pricestr = num2str(price);
+                      if lowerBound ~=0
+                       lowerBoundstr = num2str(lowerBound);
+                       opt = strcat(opt,'&lowerBound=',lowerBoundstr);
+                                                                   
+                      end
+                      if upperBound ~=0
+                        upperBoundstr = num2str(upperBound);
+                       opt = strcat(opt,'&upperBound=',upperBoundstr);
+                                                               
+                      end
+                      if stopLoss ~=0
+                        stopLossstr = num2str(stopLoss);
+                       opt = strcat(opt,'&stopLoss=',stopLossstr);                                                               
+                      end
+                      if takeProfit ~=0
+                        takeProfitstr = num2str(takeProfit);
+                       opt = strcat(opt,'&takeProfit=',takeProfitstr);                                                               
+                      end
+                       
+                      if trailingStop ~=0
+                        trailingStopstr = num2str(trailingStop);
+                       opt = strcat(opt,'&trailingStop=',trailingStopstr);                                                               
+                      end
+                      
+                      body = strcat('Content-Type=application%2Fx-www-form-urlencoded&instrument=',symbol,'&units=',volumestr,'&side=',side,'&type=',type,...
+                          '&price=',pricestr,opt);
+
+
+                    
+            
+            end
+            ret = api.MakePost(requestString,body)
+            orderId = ret.tradeOpened.id(1);
+           end
           
-            
-            
            
            
            
            
            
-           
-           
-           
-           
-           
+%% REQUEST , POST    , DELETE       
            function [ response ] = MakeRequest(api,requestString )
                 
                resp = urlread2(requestString,'GET','',api.headers);
                response = loadjson(resp);
 
 
-                end
-
-
-           
-           
-       end
-       
-       
-       
-       %%   STATIC METHODS
-       
-       
-       
-       
-       methods(Static)
-           
+           end
             
-           
-           
-           
+            function [ response ] = MakePost(api,requestString, body )
+                
+               resp = urlread2(requestString,'POST',body,api.headers);
+               response = loadjson(resp);
+
+
+            end
+            function [ response ] = MakeDelete(api,requestString )
+                
+               resp = urlread2(requestString,'DELETE','',api.headers);
+               response = loadjson(resp);
+
+
+            end
+            function [ response ] = MakePatch(api,requestString ,body)
+                
+               resp = urlread2(requestString,'PATCH',body,api.headers);
+               response = loadjson(resp);
+
+
+            end
+
+
+
            
            
        end
+       
+       
+       
+       
+       
+       
+    
        
        
        
