@@ -213,27 +213,61 @@ classdef OandaAPI
                    count='500';
                    startdate='';
                    enddate= '';
-                   candleFormat='midpoint';
+                   candleFormat='bidask';
                    optincludeFirst ='';
                                       
-               end    
-               
-               if( (strcmp(startdate,'' )==0) && (strcmp(enddate,'' )==0) )
-                       optdate = strcat('&start=',startdate,'&end=',enddate);
-                       optincludeFirst = strcat('&includeFirst= ',includeFirst);
-                       count='';
-               else
-                       optdate = '';
+               else    
+                   optdate = '';
+                   if strcmp(class(startdate),'char')==1 || strcmp(class(enddate),'char')==1 
+                    disp 'startdate and endate must be a double'
+                    History = '';
+                    return;
+                   end
+                   optincludeFirst = ''; 
+                   if startdate ~= 0 || enddate ~= 0
+                       startdate = datestr(startdate,30);%'yyyy-mm-ddTHH:MM:SSZ');
+                       optdate = strcat(optdate,'&start=',startdate);
+                                         
+                   
+                   %if enddate ~= 0
+                       enddate = datestr(enddate,30);%'yyyy-mm-ddTHH:MM:SSZ');
+                       optdate = strcat(optdate,'&end=',enddate);
+                       count = 0;
+                       
+                       if includeFirst == 1
+                       optincludeFirst = strcat('&includeFirst= ','true');
+                           else
+                              optincludeFirst = ''; 
+                           end
+                       
+                       
+                   end
+                   
+                   if count ~=0
+                       count = num2str(count);
+                       optcount = strcat('&count=',count);
+                   else
+                   optcount = '';
+                   end
+                   
+                   
+                   if strcmp(candleFormat,'')==0
+                      optcandleFormat = strcat('&candleFormat=',candleFormat);                      
+                   else
+                       optcandleFormat = '';
+                   end
+
                end
-               
-               
-               
-                requestString = strcat(api.s_apiServer , 'v1/candles?instrument=' , symbol,'&granularity=',granularity,'&count=',count,optdate,'&candleFormat=',candleFormat,optincludeFirst )%http://api-sandbox.oanda.com/v1/accounts/12345/trades
-          
+               if strcmp(api.environment,'sandbox')
+                   
+                requestString = strcat(api.s_apiServer , 'v1/candles?instrument=' , symbol,'&granularity=',granularity,optcount,optdate,optcandleFormat,optincludeFirst )%http://api-sandbox.oanda.com/v1/accounts/12345/trades
+               else
+                requestString = strcat(api.s_apiServer , 'v1/history?instrument=' , symbol,'&granularity=',granularity,optcount,optdate,optcandleFormat,optincludeFirst )%http://api-sandbox.oanda.com/v1/accounts/12345/trades
+               end
                 History = api.MakeRequest(requestString)
                
            end
-           %% Order ----------------------------------------------- 
+           %% Order ( not executed) ----------------------------------------------- 
            %% Create new ‘limit’,‘stop’,‘marketIfTouched’ or ‘market’.
            function [orderId,ret] = CreateOrder(api, symbol , volume, side, type,expiry,price,      lowerBound,upperBound,stopLoss,takeProfit,  trailingStop )
             requestString = '';
@@ -311,7 +345,7 @@ classdef OandaAPI
                order='0';
             end
            end
-           %% Close Order
+           %% Cancel Order
            function [order] = CloseOrder(api, orderId)
                requestString = '';
                
@@ -377,15 +411,251 @@ classdef OandaAPI
                     
             
             end
-            ret = api.MakePost(requestString,body)
+            ret = api.MakePatch(requestString,body)
             orderId = ret.tradeOpened.id(1);
            end
           
+           %% Trades (Executed)----------------------------------------------- 
+           %% List of open trades
+           function [ListTrades] = GetListTrades(api,symbolorid,count)
+               requestString = '';
+               opt = ''; 
+               if nargin ==1
+                  opt = ''; 
+               else
+                  if strcmp(class(symbolorid),'double')==1
+                        symbolorid = num2str(symbolorid); 
+                        opt = strcat('ids=',symbolorid);                    
+                  else
+                      opt = strcat('instrument=',symbolorid); 
+                  end
+                      
+                  if strcmp(class(count),'double')==1
+                        count = num2str(count); 
+                        opt = strcat(opt,'&count=',count);                    
+                  end
+
+               end          
+            if api.connected 
+                requestString = strcat(api.s_apiServer , 'v1/accounts/',api.account,'/trades?',opt );
+                
+                ListTrades = api.MakeRequest(requestString);
+                ListTrades = ListTrades.trades;
+            else
+                disp('Must be connected - api.account not chosen');
+               ListTrades='0';
+            end
+           end
+           %% Get trade- id
+           function [trade] = GetTrade(api, orderId)
+               requestString = '';
+               
+              if strcmp(class(orderId),'double')==1
+                    orderId = num2str(orderId); 
+              end 
+                             
+            if api.connected 
+                requestString = strcat(api.s_apiServer , 'v1/accounts/',api.account,'/trades/',orderId );
+                
+                trade = api.MakeRequest(requestString);
+            else
+                disp('Must be connected - api.account not chosen');
+               trade='0';
+            end
+           end
+           %% Modify trade
+            function [ret] = ModifyTrade(api,orderId,stopLoss,takeProfit,  trailingStop )
+            requestString = '';
+            if nargin < 3
+                disp 'Must have orderrID and variable min'
+                ret = 0;
+                return ;
+            end
+            if nargin == 3
+                disp 'TP and trail not modify'
+                takeProfit = 0;
+                trailingStop = 0;
+            end
+            if nargin == 4
+                disp 'trail not modify'
+                trailingStop = 0;
+            end
+            
+            if strcmp(class(orderId),'double')==1
+                    orderId = num2str(orderId); 
+            end 
+            
+            if api.connected 
+               requestString = strcat(api.s_apiServer , 'v1/accounts/' , api.account,'/trades/',orderId);
+                  %limit order
+                      opt = '';
+                       
+                      
+                      if stopLoss ~=0
+                        stopLossstr = num2str(stopLoss);
+                       opt = strcat(opt,'stopLoss=',stopLossstr,'&');                                                               
+                      end
+                      if nargin>3
+                          if takeProfit ~=0
+                            takeProfitstr = num2str(takeProfit);
+                           opt = strcat(opt,'takeProfit=',takeProfitstr,'&');                                                               
+                          end
+                           if nargin>4
+                                  if trailingStop ~=0
+                                    trailingStopstr = num2str(trailingStop);
+                                   opt = strcat(opt,'trailingStop=',trailingStopstr,'&');                                                               
+                                  end
+                           end
+                      end
+                      opt = opt(1:length(opt)-1) ;%Delete last separator
+                      
+
+
+                    
+            
+            end
+            ret = api.MakePatch(requestString,opt)
+            
+           end
+           %% Close Trade
+           function [order] = CloseTrade(api, orderId)
+               requestString = '';
+               
+              if strcmp(class(orderId),'double')==1
+                    orderId = num2str(orderId); 
+              end 
+                             
+            if api.connected 
+                requestString = strcat(api.s_apiServer , 'v1/accounts/',api.account,'/trades/',orderId );
+                
+                order = api.MakeDelete(requestString);
+                
+                
+            else
+                disp('Must be connected - api.account not chosen');
+               order='0';
+            end
+           end
+           %% Positions ----------------------------------------------- 
+           %% List of Positions
+           function [ListPositions] = GetListPositions(api,symbol)
+               requestString = '';
+              if nargin ==1
+                 opt = ''; 
+              else
+                  opt = symbol;
+              end
+            if api.connected 
+                requestString = strcat(api.s_apiServer , 'v1/accounts/',api.account,'/positions/',opt );
+                
+                ListPositions = api.MakeRequest(requestString);
+                ListPositions = Listpositions.positions;
+            else
+                disp('Must be connected - api.account not chosen');
+               ListPositions='0';
+            end
+           end
+           %% Close Positions
+           function [order] = ClosePosition(api, symbol)
+               requestString = '';
+                                           
+            if api.connected 
+                requestString = strcat(api.s_apiServer , 'v1/accounts/',api.account,'/positions/',symbol );
+                
+                order = api.MakeDelete(requestString);
+                
+                
+            else
+                disp('Must be connected - api.account not chosen');
+               order='0';
+            end
+           end
+           %% Transaction History ---------------------------------------
+           %% Get Transaction history
+           function history = GetTransactionHistory(api, maxId , minId , count , symbol,orderId  )
+      if api.connected   
+           requestString = '';
+           opt = '';
+           if nargin >1   
+               opt = '?';
+                   if maxId ~=0
+                       if strcmp(class(maxId),'double')==1
+                            maxId = num2str(maxId); 
+                       end
+                       option = strcat(opt,'maxid=',maxId,'&');
+                    end
+                   
+                   if minId ~=0
+                    if strcmp(class(minId),'double')==1
+                        minId = num2str(minId); 
+                    end 
+                     opt = strcat(opt,'minid=',minId,'&');
+                   end
+                   
+                   if count ~=0
+                    if strcmp(class(count),'double')==1
+                        count = num2str(count); 
+                    end 
+                     opt = strcat(opt,'count=',count,'&');
+                   end
+                   
+                   if strcmp(symbol, '')==0
+                       opt = strcat(opt,'instrument=',symbol,'&');
+                   end
+                   
+                   if orderId ~=0
+                    if strcmp(class(orderId),'double')==1
+                        orderId = num2str(orderId); 
+                    end 
+                     opt = strcat(opt,'ids=',orderId,'&');
+                   end
+                   
+                   
+          end
+           requestString = strcat(api.s_apiServer , 'v1/accounts/',api.account,'/transactions',opt );
+           history = api.MakeRequest(requestString).transactions;
+           
+      else
+          disp('Must be connected - api.account not chosen');
+          history='0';
+      end
+      
            
            
+           end
            
+            %% Streaming Prices ---------------------------------------
+            function prices = GetPricesSuscribe(api, Symbols)
+                requestString = '';
+                
+                symbolscell = '';
+             if iscell(Symbols)
+               for i=1:length(Symbols)
+                   symbolscell = strcat(symbolscell,Symbols(i),'%2C');
+               end
+               symbolsString = symbolscell{1}(1:length(symbolscell{1})-3) ;%Delete last separator
+               
+             else
+                 symbolsString = Symbols;
+             end
+                
+                                           
+            if api.connected 
+                requestString = strcat(api.s_apiServer , 'v1/prices?accountId=',api.account,'&instruments=',symbolsString );
+                
+                prices = api.MakeRequest(requestString);
+                prices = prices.prices;
+                
+                
+            else
+                disp('Must be connected - api.account not chosen');
+               prices='0';
+            end
            
-           
+                
+                
+            end
+            
 %% REQUEST , POST    , DELETE       
            function [ response ] = MakeRequest(api,requestString )
                 
@@ -410,8 +680,11 @@ classdef OandaAPI
 
             end
             function [ response ] = MakePatch(api,requestString ,body)
-                
-               resp = urlread2(requestString,'PATCH',body,api.headers);
+               disp('PATH ethod not implemnted') ;
+              % headerPatch = [http_createHeader('X-HTTP-Method-Override',''); api.headers ];
+               
+               resp = urlread2(strcat(requestString,'?_HttpMethod=PATCH'),'POST',body,api.headers);
+               
                response = loadjson(resp);
 
 

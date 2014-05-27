@@ -32,4 +32,37 @@ order = api.GetOrder(id);
 close = api.CloseOrder(id);
 %% Modify Order
 modif= api.ModifyOrder();
+%%
+ListAccounts = api.GetAccount()
+%%
+ListInstruments = api.GetInstruments()
+%% 
+Prices = api.GetPrices({'EUR_USD' ,'USD_JPY'});
+%% History
+Hist = api.GetHistory('EUR_USD');
+
+%% Create Order - start trading
+[id,order1] = api.CreateOrder('EUR_USD' , 5, 'buy');%buy mkt order
+
+%% Get Order(not executed)
+order = api.GetOrder(id);
+%% Close Order(not executed)
+close = api.CloseOrder(id);
+%% Modify Order(not executed)
+modif= api.ModifyOrder();
+
+%% Get List trades
+Trades = api.GetListTrades();
+%% Get trade
+trade1 = api.GetTrade(Trades{1}.id);
+
+%% Modify Trade
+ret = api.ModifyTrade(Trades{1}.id , 123)%PATCH not implemnted
+%% Close Trade
+deletetrade = api.CloseTrade(Trades{1}.id);
+
+%% Get History
+HistoryTrades = api.GetTransactionHistory();
+%% Get Prices Suscribe Streaming
+PricesEurUSD = api.GetPricesSuscribe('EUR_USD');
 
