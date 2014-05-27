@@ -11,3 +11,10 @@ Project to interact with OANDA API in MATLAB  - TradEA SYSTEMS (www.tradeasystem
     
     
     thanks to Qianqian Fang(JSONLAB) and Jim Hokanson(URLREAD2)
+
+
+
+To do:  
+*PATCH http request to modify trades and orders  
+*API streaming prices to autorefresh prices  
+*Get historical from datetime to datetime end  
