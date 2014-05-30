@@ -57,12 +57,12 @@ Trades = api.GetListTrades();
 trade1 = api.GetTrade(Trades{1}.id);
 
 %% Modify Trade
-ret = api.ModifyTrade(Trades{1}.id , 123)%PATCH not implemnted
+ret = api.ModifyTrade(Trades{1}.id , 123)
 %% Close Trade
 deletetrade = api.CloseTrade(Trades{1}.id);
 
 %% Get History
 HistoryTrades = api.GetTransactionHistory();
-%% Get Prices Suscribe Streaming
+%% Get Prices Suscribe Streaming  - NOTWORKING
 PricesEurUSD = api.GetPricesSuscribe('EUR_USD');
 

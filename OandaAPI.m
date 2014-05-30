@@ -19,7 +19,7 @@ classdef OandaAPI
            %username;
            %password;
            connected = false;
-           
+           streaming ;
            headers='';
            
            environment = 'sandbox';
@@ -37,6 +37,22 @@ classdef OandaAPI
            
           %% CONSTRUCTOR------------------------------------------------
           function api = OandaAPI(token,environment,account)
+              %streaming = oandafunctions.OandaFunctions();
+              addpath 'libs'; % Json toolbox and urlread2
+              javaaddpath('libs/OandaFunctions.jar');%methodsview oandafunctions.OandaFunctions
+              javaaddpath('libs/lib/httpclient-4.3.3.jar');
+                 javaaddpath('libs/lib/httpclient-cache-4.3.3.jar');
+                 javaaddpath('libs/lib/commons-cli-1.2.jar');
+                 javaaddpath('libs/lib/commons-codec-1.6.jar');%methodsview oandafunctions.OandaFunctions
+                 javaaddpath('libs/lib/commons-logging-1.1.3.jar');
+                 javaaddpath('libs/lib/fluent-hc-4.3.3.jar');
+                 javaaddpath('libs/lib/httpcore-4.3.2.jar');
+                 javaaddpath('libs/lib/httpcore-ab-4.3.2.jar');
+                 javaaddpath('libs/lib/httpcore-nio-4.3.2.jar');
+                 javaaddpath('libs/lib/httpmime-4.3.3.jar');
+                 javaaddpath('libs/lib/json-simple-1.1.1.jar');
+                 javaaddpath('libs/lib/commons-io-2.4.jar');
+              api.streaming =  oandafunctions.OandaFunctions();
               if strcmp(class(account),'double')==1
                     account = num2str(account); 
               end 
@@ -208,15 +224,15 @@ classdef OandaAPI
            function History = GetHistory(api, symbol ,granularity, count,startdate,enddate, candleFormat,includeFirst  )
                
                
-               if nargin < 8
-                   granularity='S5';
-                   count='500';
-                   startdate='';
-                   enddate= '';
+               if nargin ==2
+                   granularity='';
+                   count=0;
+                   startdate=0;
+                   enddate= 0;
                    candleFormat='bidask';
-                   optincludeFirst ='';
+                  
                                       
-               else    
+               end    
                    optdate = '';
                    if strcmp(class(startdate),'char')==1 || strcmp(class(enddate),'char')==1 
                     disp 'startdate and endate must be a double'
@@ -225,12 +241,12 @@ classdef OandaAPI
                    end
                    optincludeFirst = ''; 
                    if startdate ~= 0 || enddate ~= 0
-                       startdate = datestr(startdate,30);%'yyyy-mm-ddTHH:MM:SSZ');
+                       startdate = datestr(startdate,'yyyy-mm-dd');%'yyyy-mm-ddTHH:MM:SS.FFFZ');
                        optdate = strcat(optdate,'&start=',startdate);
                                          
                    
                    %if enddate ~= 0
-                       enddate = datestr(enddate,30);%'yyyy-mm-ddTHH:MM:SSZ');
+                       enddate = datestr(enddate,'yyyy-mm-dd');%'yyyy-mm-ddTHH:MM:SS.FFFZ');
                        optdate = strcat(optdate,'&end=',enddate);
                        count = 0;
                        
@@ -250,6 +266,11 @@ classdef OandaAPI
                    optcount = '';
                    end
                    
+                   if strcmp(granularity,'')==0
+                      optgranularity = strcat('&granularity=',granularity);                      
+                   else
+                       optgranularity = '';
+                   end
                    
                    if strcmp(candleFormat,'')==0
                       optcandleFormat = strcat('&candleFormat=',candleFormat);                      
@@ -257,13 +278,13 @@ classdef OandaAPI
                        optcandleFormat = '';
                    end
 
-               end
-               if strcmp(api.environment,'sandbox')
+               
+              % if strcmp(api.environment,'sandbox')
                    
-                requestString = strcat(api.s_apiServer , 'v1/candles?instrument=' , symbol,'&granularity=',granularity,optcount,optdate,optcandleFormat,optincludeFirst )%http://api-sandbox.oanda.com/v1/accounts/12345/trades
-               else
-                requestString = strcat(api.s_apiServer , 'v1/history?instrument=' , symbol,'&granularity=',granularity,optcount,optdate,optcandleFormat,optincludeFirst )%http://api-sandbox.oanda.com/v1/accounts/12345/trades
-               end
+                requestString = strcat(api.s_apiServer , 'v1/candles?instrument=' , symbol,optgranularity,optcount,optdate,optcandleFormat,optincludeFirst )%http://api-sandbox.oanda.com/v1/accounts/12345/trades
+               %else
+               % requestString = strcat(api.s_apiServer , 'v1/candles?instrument=' , symbol,optgranularity,granularity,optcount,optdate,optcandleFormat,optincludeFirst )%http://api-sandbox.oanda.com/v1/accounts/12345/trades
+               %end
                 History = api.MakeRequest(requestString)
                
            end
@@ -625,7 +646,8 @@ classdef OandaAPI
            end
            
             %% Streaming Prices ---------------------------------------
-            function prices = GetPricesSuscribe(api, Symbols)
+             
+          function prices = GetPricesSuscribe(api, Symbols)
                 requestString = '';
                 
                 symbolscell = '';
@@ -642,9 +664,17 @@ classdef OandaAPI
                                            
             if api.connected 
                 requestString = strcat(api.s_apiServer , 'v1/prices?accountId=',api.account,'&instruments=',symbolsString );
+                               
+                prices = '';
+                api.streaming.streamingSuscribe(requestString, api.token)  ;
                 
-                prices = api.MakeRequest(requestString);
-                prices = prices.prices;
+                %%prices = api.MakeRequest(requestString);
+                %%prices = prices.prices;
+                
+                
+                
+                %prices = loadjson(prices.prices);
+                %prices = prices.prices;
                 
                 
             else
@@ -654,8 +684,9 @@ classdef OandaAPI
            
                 
                 
-            end
+           end
             
+           
 %% REQUEST , POST    , DELETE       
            function [ response ] = MakeRequest(api,requestString )
                 
@@ -682,8 +713,8 @@ classdef OandaAPI
             function [ response ] = MakePatch(api,requestString ,body)
                disp('PATH ethod not implemnted') ;
               % headerPatch = [http_createHeader('X-HTTP-Method-Override',''); api.headers ];
-               
-               resp = urlread2(strcat(requestString,'?_HttpMethod=PATCH'),'POST',body,api.headers);
+               resp= char(oandafunctions.OandaFunctions.PatchRequest(requestString,api.token,body) );
+               %resp = urlread2(strcat(requestString,'?_HttpMethod=PATCH'),'POST',body,api.headers);
                
                response = loadjson(resp);
 
